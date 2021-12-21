@@ -4,9 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Http\Requests\UserRequest;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Helpers\ResponseFormatter;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -44,5 +46,51 @@ class UserController extends Controller
                 'error' => $error
             ], 'Authentication Failed', 500);
         }
+    }
+
+    public function login(UserRequest $request)
+    {
+        try {
+            $credentials = request(['email','password']);
+            if(!Auth::attempt($credentials)){
+                return ResponseFormatter::error(['message' => 'Unauthorized'], 'Authentication Failed', 500);
+            }
+
+            $user = User::where('email', $request->email)->first();
+            if(!Hash::check($request->password, $user->password,[])){
+                throw new \Exception("Invalid Password");
+            }
+
+            $tokenResult = $user->createToken('authToken')->plainTextToken;
+            return ResponseFormatter::success([
+                'access_token' => $tokenResult,
+                'token_type' => 'Bearer',
+                'user' => $user
+            ], 'Authenticated');
+        } catch (Exception $error) {
+            return ResponseFormatter::error([
+                'message' => 'Something went wrong',
+                'error' => $error
+            ], 'Authentication Failed', 500);
+        }
+    }
+
+    public function fetch(Request $request)
+    {
+        return ResponseFormatter::success($request->user(), 'Data berhasil diambil');
+    }
+
+    public function update(Request $request)
+    {
+       try {
+            $data = $request->all();
+            $user = Auth::user();
+            $user->update($data);
+            return ResponseFormatter::success($user, 'Profile');
+       } catch (Exception $error) {
+           return ResponseFormatter::error([
+               'error' => $error
+           ],'Failed', 500);
+       }
     }
 }
